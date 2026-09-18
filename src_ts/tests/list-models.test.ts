@@ -149,7 +149,9 @@ describe.each(SDK_LIST_CASES)("listModels for $clientType", (testCase) => {
 describe("listModels", () => {
   test.each([
     [{ capabilities: { type: "chat", supports: { tool_calls: true } } }, ["candidate"]],
-    [{ supported_endpoints: ["/responses"], capabilities: { type: "chat", supports: { tool_calls: true } } }, []],
+    [{ supported_endpoints: ["/responses"], capabilities: { type: "chat", supports: { tool_calls: true } } }, ["candidate"]],
+    [{ supported_endpoints: ["/v1/messages"], capabilities: { type: "chat", supports: { tool_calls: true } } }, []],
+    [{ supported_endpoints: ["/responses"], policy: { state: "disabled" }, capabilities: { type: "chat", supports: { tool_calls: true } } }, []],
     [{ supported_endpoints: [], capabilities: { type: "chat", supports: { tool_calls: true } } }, []],
     [{ capabilities: { type: "embeddings", supports: { tool_calls: true } } }, []],
     [{ capabilities: { type: "chat", supports: { tool_calls: false } } }, []],
