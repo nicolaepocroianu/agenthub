@@ -2,6 +2,15 @@
 
 # AgentHub SDK - Unified and Precise LLM SDK
 
+This fork provides an experimental TypeScript `github-copilot` client for PenguinHarness.
+Pass a GitHub OAuth App token as `apiKey` (or `GITHUB_COPILOT_API_KEY`) and select
+`clientType: "github-copilot"`. It accepts only `https://api.githubcopilot.com`,
+lists models advertising Chat Completions and tool calls, and leaves execution and retries
+to the calling harness. It does not embed the Copilot SDK or CLI. Access for a custom
+OAuth App must be verified with GitHub; this is not a claim of official integration support.
+Build the adapter with `npm run build` in `src_ts`. Penguin's development patch mirrors
+this adapter until it is available in a published AgentHub package.
+
 [![GitHub Repo stars](https://img.shields.io/github/stars/Prism-Shadow/AgentHub?style=social)](https://github.com/Prism-Shadow/AgentHub/stargazers)
 [![GitHub last commit](https://img.shields.io/github/last-commit/Prism-Shadow/AgentHub)](https://github.com/Prism-Shadow/AgentHub/commits/main)
 [![GitHub contributors](https://img.shields.io/github/contributors/Prism-Shadow/AgentHub?color=orange)](https://github.com/Prism-Shadow/AgentHub/graphs/contributors)

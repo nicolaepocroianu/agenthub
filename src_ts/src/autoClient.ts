@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import { LLMClient } from "./baseClient";
+import { GitHubCopilotClient } from "./github_copilot/client";
 import { Gemini3_8Client } from "./gemini3_8";
 import { Claude5Client } from "./claude5";
 import { GPT6Client } from "./gpt6";
@@ -37,6 +38,7 @@ type LLMClientConstructor = new (options: {
 
 // The generic protocol clients are named explicitly rather than deduced from a model id.
 const PROTOCOL_CLIENT_TYPES = [
+  "github-copilot",
   "openai-chat",
   "openai-chat-vllm-adapter",
   "openai-responses",
@@ -92,6 +94,7 @@ export class AutoLLMClient extends LLMClient {
    * @throws Error when the requested client is not yet implemented
    */
   private _clientClassForModel(clientType: string): LLMClientConstructor | null {
+    if (clientType === "github-copilot") return GitHubCopilotClient;
     // every Gemini generation shares the unified client ("gemini-3" also matches the
     // gemini-3.8/gemini-3.7/gemini-3.6/gemini-3.5-flash-lite client types)
     if (
