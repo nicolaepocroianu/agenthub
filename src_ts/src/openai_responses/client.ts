@@ -40,7 +40,7 @@ import { isDebugEnabled, openaiImageDetail } from "../utils";
  */
 export class OpenaiResponsesClient extends LLMClient {
   protected _model: string;
-  private _client: OpenAI;
+  protected _client: OpenAI;
 
   /**
    * Initialize OpenAI Responses-compatible client with model, API key, and base URL.
