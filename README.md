@@ -5,7 +5,8 @@
 This fork provides an experimental TypeScript `github-copilot` client for PenguinHarness.
 Pass a GitHub OAuth App token as `apiKey` (or `GITHUB_COPILOT_API_KEY`) and select
 `clientType: "github-copilot"`. It accepts only `https://api.githubcopilot.com`,
-lists models advertising Chat Completions and tool calls, and leaves execution and retries
+lists models advertising Chat Completions and tool calls (or tool-capable chat candidates
+when endpoint metadata is absent), and leaves execution and retries
 to the calling harness. It does not embed the Copilot SDK or CLI. Access for a custom
 OAuth App must be verified with GitHub; this is not a claim of official integration support.
 Build the adapter with `npm run build` in `src_ts`. Penguin's development patch mirrors
