@@ -42,7 +42,7 @@ import { fixOpenrouterUsageMetadata, openaiImageDetail } from "../utils";
  */
 export class OpenaiChatClient extends LLMClient {
   protected _model: string;
-  private _client: OpenAI;
+  protected _client: OpenAI;
 
   /**
    * Initialize OpenAI-compatible chat client with model, API key, and base URL.

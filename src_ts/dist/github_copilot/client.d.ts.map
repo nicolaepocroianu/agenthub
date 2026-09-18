@@ -1,0 +1,1 @@
+{"version":3,"file":"client.d.ts","sourceRoot":"","sources":["../../src/github_copilot/client.ts"],"names":[],"mappings":"AACA,OAAO,EAAE,gBAAgB,EAAE,MAAM,gBAAgB,CAAC;AAGlD,KAAK,OAAO,GAAG,qBAAqB,CAAC,OAAO,gBAAgB,CAAC,CAAC,CAAC,CAAC,CAAC;AAGjE,uFAAuF;AACvF,qBAAa,mBAAoB,SAAQ,gBAAgB;gBAC3C,OAAO,EAAE,OAAO;IAwCtB,UAAU,IAAI,OAAO,CAAC,MAAM,EAAE,CAAC;CAYtC"}

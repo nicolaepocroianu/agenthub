@@ -40,6 +40,12 @@ const servedIds = [
 // a model id keeps only the ids that deduce back to it.
 const SDK_LIST_CASES: ListCase[] = [
   {
+    expectedClient: "GitHubCopilotClient",
+    model: "gpt-5.6",
+    clientType: "github-copilot",
+    expected: servedIds,
+  },
+  {
     expectedClient: "GPT6Client",
     model: "gpt-5.6",
     clientType: "gpt-5.6",
@@ -130,7 +136,10 @@ describe.each(SDK_LIST_CASES)("listModels for $clientType", (testCase) => {
     });
     expect(routedClientName(client)).toBe(testCase.expectedClient);
     installFakeModels(client, {
-      models: { list: () => asyncIterable(servedIds.map((id) => ({ id }))) },
+      models: { list: () => asyncIterable(servedIds.map((id) => ({
+        id, supported_endpoints: ["/chat/completions"],
+        capabilities: { supports: { tool_calls: true } },
+      }))) },
     });
 
     await expect(client.listModels()).resolves.toEqual(testCase.expected);
