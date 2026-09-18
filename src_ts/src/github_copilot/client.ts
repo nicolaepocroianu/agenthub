@@ -35,7 +35,7 @@ export class GitHubCopilotClient extends OpenaiChatClient {
           // Image-only synthetic user messages can carry a preceding tool result.
           const toolImage = last?.role === "user" && Array.isArray(last.content) &&
             last.content.every((part) => part.type === "image_url") &&
-            messages.slice(0, -1).some((message) => message.role === "tool");
+            messages[messages.length - 2]?.role === "tool";
           headers.set("X-Initiator", last?.role === "user" && !toolImage ? "user" : "agent");
           if (messages.some((message) => Array.isArray(message.content) &&
             message.content.some((part) => part.type === "image_url"))) {

@@ -8,9 +8,8 @@ Pass a GitHub OAuth App token as `apiKey` (or `GITHUB_COPILOT_API_KEY`) and sele
 lists models advertising Chat Completions and tool calls, and leaves execution and retries
 to the calling harness. It does not embed the Copilot SDK or CLI. Access for a custom
 OAuth App must be verified with GitHub; this is not a claim of official integration support.
-The root npm manifest and committed `src_ts/dist` make the pinned Git revision installable
-without a local patch or install-time compiler. Build changes with `npm run build` in
-`src_ts` and commit the regenerated distribution together with the source.
+Build the adapter with `npm run build` in `src_ts`. Penguin's development patch mirrors
+this adapter until it is available in a published AgentHub package.
 
 [![GitHub Repo stars](https://img.shields.io/github/stars/Prism-Shadow/AgentHub?style=social)](https://github.com/Prism-Shadow/AgentHub/stargazers)
 [![GitHub last commit](https://img.shields.io/github/last-commit/Prism-Shadow/AgentHub)](https://github.com/Prism-Shadow/AgentHub/commits/main)
