@@ -147,6 +147,18 @@ describe.each(SDK_LIST_CASES)("listModels for $clientType", (testCase) => {
 });
 
 describe("listModels", () => {
+  test.each([
+    [{ capabilities: { type: "chat", supports: { tool_calls: true } } }, ["candidate"]],
+    [{ supported_endpoints: ["/responses"], capabilities: { type: "chat", supports: { tool_calls: true } } }, []],
+    [{ supported_endpoints: [], capabilities: { type: "chat", supports: { tool_calls: true } } }, []],
+    [{ capabilities: { type: "embeddings", supports: { tool_calls: true } } }, []],
+    [{ capabilities: { type: "chat", supports: { tool_calls: false } } }, []],
+    [{ capabilities: { supports: { tool_calls: true } } }, []],
+  ])("respects optional Copilot endpoint metadata: %j", async (metadata, expected) => {
+    const client = new AutoLLMClient({ model: "github-copilot", clientType: "github-copilot", apiKey: "test-key" });
+    installFakeModels(client, { models: { list: () => asyncIterable([{ id: "candidate", ...metadata }]) } });
+    await expect(client.listModels()).resolves.toEqual(expected);
+  });
   test("the Gemini client strips the path from model names", async () => {
     // Deliberately the previous generation's spelling: the unified client is named for the
     // newest one, and a caller still passing clientType "gemini-3.7" must keep routing to it.

@@ -52,9 +52,15 @@ export class GitHubCopilotClient extends OpenaiChatClient {
     for await (const entry of this._client.models.list({ timeout: 15_000 })) {
       const model = entry as typeof entry & {
         supported_endpoints?: string[];
-        capabilities?: { supports?: { tool_calls?: boolean } };
+        capabilities?: { type?: string; supports?: { tool_calls?: boolean } };
       };
-      if (model.supported_endpoints?.includes("/chat/completions") &&
+      // Older catalogs omit endpoint metadata. Treat explicitly chat-capable
+      // entries as candidates, while honoring any advertised endpoint restrictions.
+      const chat = model.supported_endpoints === undefined
+        ? model.capabilities?.type === "chat"
+        : Array.isArray(model.supported_endpoints) &&
+          model.supported_endpoints.includes("/chat/completions");
+      if (chat &&
           model.capabilities?.supports?.tool_calls === true) ids.push(model.id);
     }
     return ids;
