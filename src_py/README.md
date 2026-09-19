@@ -1,5 +1,18 @@
 # AgentHub Python Implementation
 
+## Experimental ChatGPT subscriptions
+
+Use `client_type="chatgpt-codex"` with an async `chatgpt_credentials` callback returning
+`ChatGPTCredentials`. Python expiry timestamps use seconds since epoch. Device sign-in helpers
+are `start_chatgpt_device_authorization` and `poll_chatgpt_device_authorization`; respect the
+returned polling interval and expiry. `refresh_chatgpt_credentials` returns refreshed credentials.
+The caller owns secure storage and refresh serialization, and must persist rotation before inference.
+
+This is an undocumented Codex subscription backend, not the public OpenAI API or a Codex agent.
+Endpoint URLs are fixed and redirects are refused. Discovery lists visible subscription models.
+The backend controls output limits (`max_tokens` is omitted), temperature is rejected, and requests
+stream with `store=False`. No transport retries are made. Reconnect if authorization is revoked.
+
 This document demonstrates how to use `AutoLLMClient` for unified LLM interactions in AgentHub.
 
 ## Building

@@ -13,6 +13,21 @@ make test     # Run tests
 
 ## Usage
 
+### Experimental ChatGPT subscriptions
+
+Use `clientType: "chatgpt-codex"` with a server-side `chatgptCredentials` async callback
+returning `{ accessToken, refreshToken, accountId, expiresAt }` (milliseconds since epoch).
+`startChatGPTDeviceAuthorization` and `pollChatGPTDeviceAuthorization` implement device sign-in;
+respect the returned polling interval and expiry. `refreshChatGPTCredentials` exchanges a refresh
+token. The caller must serialize refreshes and securely persist returned rotations before inference.
+The callback is called before each request so disconnects reach existing clients.
+
+This uses an undocumented Codex subscription backend, not the public OpenAI API. It runs no
+Codex agent or tools. Endpoint URLs are fixed and redirects are refused. Model discovery lists
+only visible subscription models. The backend controls output limits (`max_tokens` is omitted),
+temperature is rejected, and responses always stream with `store: false`. No retries are made by
+this transport. A rejected or revoked authorization requires reconnecting.
+
 ### Basic Client Usage
 
 ```typescript

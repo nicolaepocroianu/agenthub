@@ -13,6 +13,15 @@
 # limitations under the License.
 
 from .auto_client import AutoLLMClient
+from .chatgpt_codex import (
+    ChatGPTAuthorizationError,
+    ChatGPTCodexClient,
+    ChatGPTCredentials,
+    ChatGPTDeviceAuthorization,
+    poll_chatgpt_device_authorization,
+    refresh_chatgpt_credentials,
+    start_chatgpt_device_authorization,
+)
 from .errors import (
     AgentHubError,
     EmptyResponseError,
@@ -27,6 +36,10 @@ from .types import PromptCaching, ThinkingLevel
 __all__ = [
     "AgentHubError",
     "AutoLLMClient",
+    "ChatGPTAuthorizationError",
+    "ChatGPTCodexClient",
+    "ChatGPTCredentials",
+    "ChatGPTDeviceAuthorization",
     "Currency",
     "EmptyResponseError",
     "Modality",
@@ -38,4 +51,7 @@ __all__ = [
     "UnsupportedOperationError",
     "UnsupportedParameterError",
     "list_supported_models",
+    "poll_chatgpt_device_authorization",
+    "refresh_chatgpt_credentials",
+    "start_chatgpt_device_authorization",
 ]
