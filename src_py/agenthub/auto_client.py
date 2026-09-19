@@ -17,11 +17,13 @@ from typing import Any, AsyncIterator
 
 from .abort_signal import AbortSignal
 from .base_client import LLMClient
+from .chatgpt_codex.auth import ChatGPTCredentialProvider
 from .types import UniConfig, UniEvent, UniMessage
 
 
 # The generic protocol clients are named explicitly rather than deduced from a model id.
 _PROTOCOL_CLIENT_TYPES = (
+    "chatgpt-codex",
     "openai-chat",
     "openai-chat-vllm-adapter",
     "openai-responses",
@@ -45,6 +47,7 @@ class AutoLLMClient(LLMClient):
         base_url: str | None = None,
         client_type: str | None = None,
         default_headers: dict[str, str] | None = None,
+        chatgpt_credentials: ChatGPTCredentialProvider | None = None,
     ):
         """
         Initialize AutoLLMClient with a specific model.
@@ -57,6 +60,11 @@ class AutoLLMClient(LLMClient):
             default_headers: Optional headers sent with every request, for endpoints that demand their own
         """
         self._client_type = (client_type or os.getenv("CLIENT_TYPE") or model).lower()
+        if self._client_type == "chatgpt-codex":
+            from .chatgpt_codex.client import ChatGPTCodexClient
+
+            self._client = ChatGPTCodexClient(model, api_key, base_url, default_headers, chatgpt_credentials)
+            return
         self._client = self._create_client_for_model(model, api_key, base_url, self._client_type, default_headers)
 
     @staticmethod
@@ -70,6 +78,10 @@ class AutoLLMClient(LLMClient):
         Returns:
             type[LLMClient] | None: The client class, or None when no client claims the type.
         """
+        if client_type == "chatgpt-codex":
+            from .chatgpt_codex.client import ChatGPTCodexClient
+
+            return ChatGPTCodexClient
         # every Gemini generation shares the unified client ("gemini-3" also matches the
         # gemini-3.8/gemini-3.7/gemini-3.6/gemini-3.5-flash-lite client types)
         if any(
