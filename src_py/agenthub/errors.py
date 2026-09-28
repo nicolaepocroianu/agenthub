@@ -29,6 +29,14 @@ class AgentHubError(ValueError):
     """Base class for errors raised by AgentHub clients."""
 
 
+class ResponseStreamError(AgentHubError):
+    """A Responses stream failed after the HTTP request had already succeeded."""
+
+    def __init__(self, message: Any, code: Any) -> None:
+        self.code = code if isinstance(code, str) else None
+        super().__init__(message if isinstance(message, str) and message else "The Responses stream failed.")
+
+
 class UnsupportedParameterError(AgentHubError):
     """Raised when a UniConfig parameter value is not supported by the target model client.
 

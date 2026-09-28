@@ -25,6 +25,7 @@ from .chatgpt_codex import (
 from .errors import (
     AgentHubError,
     EmptyResponseError,
+    ResponseStreamError,
     ToolCallArgumentParseError,
     UnsupportedOperationError,
     UnsupportedParameterError,
@@ -45,6 +46,7 @@ __all__ = [
     "Modality",
     "ModelPricing",
     "PromptCaching",
+    "ResponseStreamError",
     "SupportedModel",
     "ThinkingLevel",
     "ToolCallArgumentParseError",

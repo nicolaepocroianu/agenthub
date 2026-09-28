@@ -28,6 +28,21 @@ export class AgentHubError extends Error {
   }
 }
 
+/** A Responses stream failed after the HTTP request had already succeeded. */
+export class ResponseStreamError extends AgentHubError {
+  readonly code: string | null;
+
+  constructor(message: unknown, code: unknown) {
+    super(
+      typeof message === "string" && message
+        ? message
+        : "The Responses stream failed.",
+    );
+    this.name = "ResponseStreamError";
+    this.code = typeof code === "string" ? code : null;
+  }
+}
+
 /**
  * Raised when a UniConfig parameter value is not supported by the target model client.
  *

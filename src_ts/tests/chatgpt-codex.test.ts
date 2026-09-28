@@ -2,6 +2,8 @@ import { afterEach, describe, expect, jest, test } from "@jest/globals";
 import {
   AutoLLMClient,
   ChatGPTCodexClient,
+  ChatGPTAuthorizationError,
+  ResponseStreamError,
   startChatGPTDeviceAuthorization,
   pollChatGPTDeviceAuthorization,
   refreshChatGPTCredentials,
@@ -21,6 +23,136 @@ afterEach(() => {
 });
 
 describe("experimental ChatGPT transport", () => {
+  test.each(["AbortError", "TimeoutError", "TypeError"])(
+    "does not invalidate credentials on a body read %s",
+    async (name) => {
+      const error = Object.assign(new Error("refresh-secret"), { name });
+      jest.spyOn(globalThis, "fetch").mockResolvedValue(
+        new Response(
+          new ReadableStream({
+            start(controller) {
+              controller.enqueue(new TextEncoder().encode('{"access_token":'));
+              controller.error(error);
+            },
+          }),
+        ),
+      );
+      const result = refreshChatGPTCredentials(auth);
+      await expect(result).rejects.not.toBeInstanceOf(
+        ChatGPTAuthorizationError,
+      );
+      await expect(result).rejects.not.toHaveProperty("status");
+      await expect(result).rejects.not.toThrow("refresh-secret");
+      await expect(result).rejects.toHaveProperty(
+        "name",
+        name === "TypeError" ? "Error" : name,
+      );
+    },
+  );
+
+  test("preserves caller cancellation after refresh headers arrive", async () => {
+    const abort = new AbortController();
+    const reason = new Error("cancelled by caller");
+    jest.spyOn(globalThis, "fetch").mockImplementation(async () => {
+      const response = new Response(
+        new ReadableStream({
+          pull(controller) {
+            abort.abort(reason);
+            controller.error(new DOMException("aborted", "AbortError"));
+          },
+        }),
+      );
+      return response;
+    });
+    await expect(refreshChatGPTCredentials(auth, abort.signal)).rejects.toBe(
+      reason,
+    );
+  });
+
+  test.each([
+    '{"access_token":"refresh-secret",',
+    JSON.stringify({ access_token: "refresh-secret", expires_in: -1 }),
+  ])("keeps malformed credentials sanitized", async (body) => {
+    jest.spyOn(globalThis, "fetch").mockResolvedValue(new Response(body));
+    await expect(refreshChatGPTCredentials(auth)).rejects.toMatchObject({
+      name: "ChatGPTAuthorizationError",
+      status: 401,
+      message:
+        "ChatGPT returned invalid credentials. Reconnect your subscription.",
+    });
+  });
+
+  describe.each(["chatgpt-codex", "openai-responses"])(
+    "%s failures",
+    (clientType) => {
+      test.each([
+        [
+          "context_length_exceeded",
+          "Your input exceeds the context window.",
+          false,
+        ],
+        ["rate_limit_exceeded", "Please retry later.", true],
+        [null, null, false],
+      ])(
+        "preserves %s errors: %s (partial output: %s)",
+        async (code, message, partial) => {
+          const events = [
+            ...(partial
+              ? [{ type: "response.output_text.delta", delta: "partial" }]
+              : []),
+            {
+              type: "response.failed",
+              response: {
+                status: "failed",
+                error: code ? { code, message } : null,
+                output: [{ text: "private-output" }],
+              },
+            },
+          ];
+          jest.spyOn(globalThis, "fetch").mockResolvedValue(
+            new Response(
+              events
+                .map((event) => `data: ${JSON.stringify(event)}\n\n`)
+                .join(""),
+              {
+                headers: { "Content-Type": "text/event-stream" },
+              },
+            ),
+          );
+          const client = new AutoLLMClient({
+            model: "subscription-a",
+            clientType,
+            apiKey: "test-key",
+            chatgptCredentials: async () => auth,
+          });
+          const seen: UniEvent[] = [];
+          const collect = async () => {
+            for await (const event of client.streamingResponse({
+              messages: [
+                {
+                  role: "user",
+                  content_items: [{ type: "text", text: "hello" }],
+                },
+              ],
+              config: {},
+            }))
+              seen.push(event);
+          };
+          const result = collect();
+          await expect(result).rejects.toBeInstanceOf(ResponseStreamError);
+          await expect(result).rejects.toMatchObject({
+            code,
+            message: message ?? "The Responses stream failed.",
+          });
+          await expect(result).rejects.not.toHaveProperty("response");
+          await expect(result).rejects.not.toThrow("private-output");
+          expect(seen.some((event) => event.finish_reason)).toBe(false);
+          expect(seen.length).toBe(partial ? 1 : 0);
+        },
+      );
+    },
+  );
+
   test("keeps transient refresh failures distinguishable from revoked authorization", async () => {
     jest
       .spyOn(globalThis, "fetch")

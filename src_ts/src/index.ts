@@ -19,6 +19,7 @@ export type { ChatGPTModel } from "./chatgpt_codex/client";
 export {
   AgentHubError,
   EmptyResponseError,
+  ResponseStreamError,
   ToolCallArgumentParseError,
   UnsupportedOperationError,
   UnsupportedParameterError,

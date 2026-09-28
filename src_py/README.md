@@ -13,6 +13,10 @@ Endpoint URLs are fixed and redirects are refused. Discovery lists visible subsc
 The backend controls output limits (`max_tokens` is omitted), temperature is rejected, and requests
 stream with `store=False`. No transport retries are made. Reconnect if authorization is revoked.
 
+Failed Responses streams raise `ResponseStreamError` with the provider's message and `code`
+(or `None` if omitted). Refresh cancellation and connection failures do not raise
+`ChatGPTAuthorizationError`; callers can retry without discarding stored credentials.
+
 This document demonstrates how to use `AutoLLMClient` for unified LLM interactions in AgentHub.
 
 ## Building

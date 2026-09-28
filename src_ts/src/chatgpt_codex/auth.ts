@@ -63,6 +63,7 @@ function nonempty(value: unknown): value is string {
 async function credentials(
   response: Response,
   previous?: ChatGPTCredentials,
+  signal?: AbortSignal,
 ): Promise<ChatGPTCredentials> {
   if (!response.ok && ![400, 401, 403].includes(response.status))
     throw Object.assign(
@@ -73,8 +74,25 @@ async function credentials(
     throw new ChatGPTAuthorizationError(
       "ChatGPT authorization was rejected. Reconnect your subscription.",
     );
+  // Read separately so an interrupted body never invalidates stored credentials.
+  let text: string;
   try {
-    const body = (await response.json()) as Record<string, unknown>;
+    text = await response.text();
+  } catch (error) {
+    signal?.throwIfAborted();
+    if (
+      error instanceof Error &&
+      ["AbortError", "TimeoutError"].includes(error.name)
+    )
+      throw new DOMException(
+        "ChatGPT authorization was interrupted.",
+        error.name,
+      );
+    throw new Error("ChatGPT authorization could not be reached. Try again.");
+  }
+  signal?.throwIfAborted();
+  try {
+    const body = JSON.parse(text) as Record<string, unknown>;
     const accessToken = body.access_token;
     const refreshToken = body.refresh_token ?? previous?.refreshToken;
     let accountId = previous?.accountId;
@@ -180,6 +198,8 @@ export async function pollChatGPTDeviceAuthorization(
       }),
       signal,
     ),
+    undefined,
+    signal,
   );
 }
 
@@ -199,5 +219,6 @@ export async function refreshChatGPTCredentials(
       signal,
     ),
     previous,
+    signal,
   );
 }

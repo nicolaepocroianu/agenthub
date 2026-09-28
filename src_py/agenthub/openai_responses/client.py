@@ -20,7 +20,7 @@ from openai import AsyncOpenAI
 from openai.types.responses import ResponseInputParam, ResponseStreamEvent
 
 from ..base_client import LLMClient
-from ..errors import UnsupportedParameterError, parse_tool_call_arguments
+from ..errors import ResponseStreamError, UnsupportedParameterError, parse_tool_call_arguments
 from ..types import (
     EventType,
     FinishReason,
@@ -251,7 +251,11 @@ class OpenaiResponsesClient(LLMClient):
         finish_reason: FinishReason | None = None
 
         openai_event_type = model_output.type
-        if openai_event_type == "response.output_text.delta":
+        if openai_event_type == "response.failed":
+            error = model_output.response.error
+            raise ResponseStreamError(getattr(error, "message", None), getattr(error, "code", None))
+
+        elif openai_event_type == "response.output_text.delta":
             event_type = "delta"
             content_items.append({"type": "text", "text": model_output.delta})
 

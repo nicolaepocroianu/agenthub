@@ -28,6 +28,10 @@ only visible subscription models. The backend controls output limits (`max_token
 temperature is rejected, and responses always stream with `store: false`. No retries are made by
 this transport. A rejected or revoked authorization requires reconnecting.
 
+Failed Responses streams raise `ResponseStreamError` with the provider's message and `code`
+(or `null` if omitted). Refresh cancellation and connection failures do not raise
+`ChatGPTAuthorizationError`; callers can retry without discarding stored credentials.
+
 ### Basic Client Usage
 
 ```typescript
