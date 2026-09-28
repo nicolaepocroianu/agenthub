@@ -14,7 +14,8 @@
 
 import json
 import os
-from typing import Any, AsyncIterator
+from types import TracebackType
+from typing import Any, AsyncIterator, Self
 
 from openai import AsyncOpenAI
 from openai.types.responses import ResponseInputParam, ResponseStreamEvent
@@ -45,13 +46,32 @@ class OpenaiResponsesClient(LLMClient):
         api_key: str | None = None,
         base_url: str | None = None,
         default_headers: dict[str, str] | None = None,
+        *,
+        _client: AsyncOpenAI | None = None,
     ):
         """Initialize OpenAI Responses-compatible client with model, API key, and base URL."""
         self._model = model
         api_key = api_key or os.getenv("OPENAI_API_KEY")
         base_url = base_url or os.getenv("OPENAI_BASE_URL")
-        self._client = AsyncOpenAI(api_key=api_key, base_url=base_url, default_headers=default_headers)
+        # Internal injection transfers ownership so transport subclasses allocate one SDK client.
+        self._client = (
+            _client
+            if _client is not None
+            else AsyncOpenAI(api_key=api_key, base_url=base_url, default_headers=default_headers)
+        )
         self._history: list[UniMessage] = []
+
+    async def aclose(self) -> None:
+        """Close this client's owned HTTP connection pool after all requests finish."""
+        await self._client.close()
+
+    async def __aenter__(self) -> Self:
+        return self
+
+    async def __aexit__(
+        self, exc_type: type[BaseException] | None, exc: BaseException | None, traceback: TracebackType | None
+    ) -> None:
+        await self.aclose()
 
     def _convert_thinking_level_to_effort(self, thinking_level: ThinkingLevel) -> str:
         """Convert ThinkingLevel enum to the Responses API reasoning effort."""

@@ -13,11 +13,13 @@
 # limitations under the License.
 
 import os
-from typing import Any, AsyncIterator
+from types import TracebackType
+from typing import Any, AsyncIterator, Awaitable, Callable, Self
 
 from .abort_signal import AbortSignal
 from .base_client import LLMClient
 from .chatgpt_codex.auth import ChatGPTCredentialProvider
+from .errors import UnsupportedOperationError
 from .types import UniConfig, UniEvent, UniMessage
 
 
@@ -66,6 +68,29 @@ class AutoLLMClient(LLMClient):
             self._client = ChatGPTCodexClient(model, api_key, base_url, default_headers, chatgpt_credentials)
             return
         self._client = self._create_client_for_model(model, api_key, base_url, self._client_type, default_headers)
+
+    def _closer(self) -> Callable[[], Awaitable[None]]:
+        closer = getattr(self._client, "aclose", None)
+        if not callable(closer):
+            raise UnsupportedOperationError(
+                client=type(self._client).__name__,
+                operation="aclose",
+                message="This routed client does not support asynchronous cleanup.",
+            )
+        return closer
+
+    async def aclose(self) -> None:
+        """Close the routed client; unsupported providers raise UnsupportedOperationError."""
+        await self._closer()()
+
+    async def __aenter__(self) -> Self:
+        self._closer()
+        return self
+
+    async def __aexit__(
+        self, exc_type: type[BaseException] | None, exc: BaseException | None, traceback: TracebackType | None
+    ) -> None:
+        await self.aclose()
 
     @staticmethod
     def _client_class_for_model(client_type: str) -> type[LLMClient] | None:

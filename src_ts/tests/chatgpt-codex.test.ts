@@ -23,6 +23,131 @@ afterEach(() => {
 });
 
 describe("experimental ChatGPT transport", () => {
+  describe("device polling backoff", () => {
+    const now = Date.UTC(2026, 0, 1);
+    const makeFlow = () => ({
+      deviceAuthId: "device",
+      userCode: "ABCD-EFGH",
+      intervalMs: 5000,
+      expiresAt: now + 900_000,
+      authorizeUrl: "https://auth.openai.com/codex/device",
+    });
+
+    test.each([
+      [429, undefined, 5, 10],
+      [429, "30", 5, 30],
+      [429, new Date(now + 45_000).toUTCString(), 5, 45],
+      [429, new Date(now - 45_000).toUTCString(), 5, 10],
+      [429, "invalid", 5, 10],
+      [429, "-1", 5, 10],
+      [429, "999999", 5, 900],
+      [429, undefined, 40, 60],
+      [429, undefined, 120, 120],
+      [400, undefined, 5, 10],
+      [400, "30", 5, 30],
+      [400, undefined, 120, 120],
+      [200, undefined, 5, 10],
+      [403, undefined, 5, 5],
+      [404, undefined, 5, 5],
+    ] as const)(
+      "keeps %s pending (Retry-After %s, interval %s → %s seconds)",
+      async (status, retryAfter, initial, expected) => {
+        jest.spyOn(Date, "now").mockReturnValue(now);
+        const flow = { ...makeFlow(), intervalMs: initial * 1000 };
+        const fetcher = jest.spyOn(globalThis, "fetch").mockResolvedValue(
+          Response.json(
+            { error: "slow_down" },
+            {
+              status,
+              headers: retryAfter ? { "Retry-After": retryAfter } : {},
+            },
+          ),
+        );
+        expect(await pollChatGPTDeviceAuthorization(flow)).toBeNull();
+        expect(flow.intervalMs).toBe(expected * 1000);
+        expect(fetcher).toHaveBeenCalledTimes(1);
+      },
+    );
+
+    test("discards throttled response bodies before returning pending", async () => {
+      jest.spyOn(Date, "now").mockReturnValue(now);
+      const response = new Response("discarded", { status: 429 });
+      const cancel = jest.spyOn(response.body!, "cancel");
+      jest.spyOn(globalThis, "fetch").mockResolvedValue(response);
+      expect(await pollChatGPTDeviceAuthorization(makeFlow())).toBeNull();
+      expect(cancel).toHaveBeenCalledTimes(1);
+    });
+
+    test("caps repeated fallback backoff and can complete after throttling", async () => {
+      jest.spyOn(Date, "now").mockReturnValue(now);
+      const flow = makeFlow();
+      const fetcher = jest
+        .spyOn(globalThis, "fetch")
+        .mockImplementation(async () => new Response(null, { status: 429 }));
+      for (let i = 0; i < 8; i++)
+        expect(await pollChatGPTDeviceAuthorization(flow)).toBeNull();
+      expect(flow.intervalMs).toBe(60_000);
+      fetcher
+        .mockResolvedValueOnce(new Response(null, { status: 404 }))
+        .mockResolvedValueOnce(
+          Response.json({
+            authorization_code: "code",
+            code_verifier: "verifier",
+          }),
+        )
+        .mockResolvedValueOnce(
+          Response.json({
+            access_token: "access",
+            refresh_token: "refresh",
+            expires_in: 3600,
+            id_token: jwt({
+              "https://api.openai.com/auth": { chatgpt_account_id: "account" },
+            }),
+          }),
+        );
+      expect(await pollChatGPTDeviceAuthorization(flow)).toBeNull();
+      expect(flow.intervalMs).toBe(60_000);
+      await expect(pollChatGPTDeviceAuthorization(flow)).resolves.toMatchObject(
+        { accountId: "account" },
+      );
+    });
+
+    test.each([false, true])(
+      "rejects expiry before or during polling (during=%s)",
+      async (during) => {
+        let current = now;
+        jest.spyOn(Date, "now").mockImplementation(() => current);
+        const flow = { ...makeFlow(), expiresAt: during ? now + 1000 : now };
+        const fetcher = jest
+          .spyOn(globalThis, "fetch")
+          .mockImplementation(async () => {
+            current += 1000;
+            return new Response(null, { status: 429 });
+          });
+        await expect(pollChatGPTDeviceAuthorization(flow)).rejects.toThrow(
+          "expired",
+        );
+        expect(fetcher).toHaveBeenCalledTimes(during ? 1 : 0);
+        expect(flow.intervalMs).toBe(5000);
+      },
+    );
+
+    test("preserves cancellation when a throttled response arrives", async () => {
+      jest.spyOn(Date, "now").mockReturnValue(now);
+      const abort = new AbortController();
+      const reason = new Error("cancelled");
+      const flow = makeFlow();
+      jest.spyOn(globalThis, "fetch").mockImplementation(async () => {
+        abort.abort(reason);
+        return new Response(null, { status: 429 });
+      });
+      await expect(
+        pollChatGPTDeviceAuthorization(flow, abort.signal),
+      ).rejects.toBe(reason);
+      expect(flow.intervalMs).toBe(5000);
+    });
+  });
+
   test.each(["AbortError", "TimeoutError", "TypeError"])(
     "does not invalidate credentials on a body read %s",
     async (name) => {

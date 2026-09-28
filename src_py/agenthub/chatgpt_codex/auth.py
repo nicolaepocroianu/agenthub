@@ -3,8 +3,10 @@
 import base64
 import json
 import math
+import re
 import time
 from dataclasses import dataclass
+from email.utils import parsedate_to_datetime
 from typing import Any, Awaitable, Callable
 
 import httpx
@@ -31,7 +33,7 @@ class ChatGPTCredentials:
 ChatGPTCredentialProvider = Callable[[], Awaitable[ChatGPTCredentials]]
 
 
-@dataclass(frozen=True)
+@dataclass
 class ChatGPTDeviceAuthorization:
     device_auth_id: str
     user_code: str
@@ -106,17 +108,47 @@ async def start_chatgpt_device_authorization() -> ChatGPTDeviceAuthorization:
     return ChatGPTDeviceAuthorization(device_id, code, max(5, interval), time.time() + 900)
 
 
-async def poll_chatgpt_device_authorization(flow: ChatGPTDeviceAuthorization) -> ChatGPTCredentials | None:
+def _check_device_expiry(flow: ChatGPTDeviceAuthorization) -> None:
     if time.time() >= flow.expires_at:
         raise ValueError("ChatGPT device authorization expired. Start again.")
+
+
+def _backoff_device_poll(flow: ChatGPTDeviceAuthorization, response: httpx.Response) -> None:
+    now = time.time()
+    current = flow.interval
+    fallback = max(current, min(60, current * 2 if response.status_code == 429 else current + 5))
+    header = response.headers.get("Retry-After", "").strip()
+    retry_after = 0.0
+    try:
+        if re.fullmatch(r"[0-9]+", header):
+            retry_after = float(header)
+        elif re.fullmatch(r"[A-Za-z]{3}, [0-9]{2} [A-Za-z]{3} [0-9]{4} [0-9]{2}:[0-9]{2}:[0-9]{2} GMT", header):
+            retry_after = parsedate_to_datetime(header).timestamp() - now
+    except (ValueError, OverflowError):
+        pass
+    flow.interval = min(flow.expires_at - now, max(5, fallback, retry_after if math.isfinite(retry_after) else 0))
+
+
+async def poll_chatgpt_device_authorization(flow: ChatGPTDeviceAuthorization) -> ChatGPTCredentials | None:
+    """Return None while pending; reread flow.interval after every poll and respect expires_at."""
+    _check_device_expiry(flow)
     response = await _request(
         "/api/accounts/deviceauth/token", {"device_auth_id": flow.device_auth_id, "user_code": flow.user_code}
     )
+    _check_device_expiry(flow)
     if response.status_code in (403, 404):
+        return None
+    if response.status_code == 429:
+        _backoff_device_poll(flow, response)
+        return None
+    if not response.is_success and response.status_code != 400:
+        raise ValueError("ChatGPT device authorization failed. Start again.")
+    body = response.json()
+    if body.get("error") == "slow_down":
+        _backoff_device_poll(flow, response)
         return None
     if not response.is_success:
         raise ValueError("ChatGPT device authorization failed. Start again.")
-    body = response.json()
     if not all(isinstance(body.get(k), str) and body[k] for k in ("authorization_code", "code_verifier")):
         raise ValueError("ChatGPT returned an invalid authorization response.")
     return _credentials(

@@ -25,7 +25,6 @@ class ChatGPTCodexClient(OpenaiResponsesClient):
             raise ValueError("ChatGPT subscriptions require the Codex backend endpoint.")
         if chatgpt_credentials is None:
             raise ValueError("Connect a ChatGPT subscription first.")
-        super().__init__(model, api_key="subscription", base_url=BASE_URL)
 
         async def authorize(request: httpx.Request) -> None:
             if str(request.url.copy_with(path="/", query=None)) != "https://chatgpt.com/" or request.url.path not in (
@@ -41,11 +40,14 @@ class ChatGPTCodexClient(OpenaiResponsesClient):
             if request.url.path.endswith("/models"):
                 request.url = request.url.copy_set_param("client_version", "0.154.0")
 
-        self._client = AsyncOpenAI(
-            api_key="subscription",
-            base_url=BASE_URL,
-            max_retries=0,
-            http_client=httpx.AsyncClient(follow_redirects=False, event_hooks={"request": [authorize]}),
+        super().__init__(
+            model,
+            _client=AsyncOpenAI(
+                api_key="subscription",
+                base_url=BASE_URL,
+                max_retries=0,
+                http_client=httpx.AsyncClient(follow_redirects=False, event_hooks={"request": [authorize]}),
+            ),
         )
 
     def transform_uni_config_to_model_config(self, config: UniConfig) -> dict[str, Any]:

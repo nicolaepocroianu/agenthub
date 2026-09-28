@@ -165,13 +165,41 @@ export async function startChatGPTDeviceAuthorization(
   };
 }
 
-/** A null result means pending. Callers must respect intervalMs and expiresAt. */
+function checkDeviceExpiry(flow: ChatGPTDeviceAuthorization): void {
+  if (Date.now() >= flow.expiresAt)
+    throw new Error("ChatGPT device authorization expired. Start again.");
+}
+
+function backoffDevicePoll(
+  flow: ChatGPTDeviceAuthorization,
+  response: Response,
+): null {
+  const now = Date.now();
+  const current = flow.intervalMs;
+  const fallback = Math.max(
+    current,
+    Math.min(60_000, response.status === 429 ? current * 2 : current + 5_000),
+  );
+  const header = response.headers.get("Retry-After")?.trim() ?? "";
+  let retryAfter = NaN;
+  if (/^\d+$/.test(header)) retryAfter = Number(header) * 1000;
+  else if (
+    /^[A-Za-z]{3}, \d{2} [A-Za-z]{3} \d{4} \d{2}:\d{2}:\d{2} GMT$/.test(header)
+  )
+    retryAfter = Date.parse(header) - now;
+  flow.intervalMs = Math.min(
+    flow.expiresAt - now,
+    Math.max(5_000, fallback, Number.isFinite(retryAfter) ? retryAfter : 0),
+  );
+  return null;
+}
+
+/** Pending returns null; reread intervalMs after each poll and respect expiresAt. */
 export async function pollChatGPTDeviceAuthorization(
   flow: ChatGPTDeviceAuthorization,
   signal?: AbortSignal,
 ): Promise<ChatGPTCredentials | null> {
-  if (Date.now() >= flow.expiresAt)
-    throw new Error("ChatGPT device authorization expired. Start again.");
+  checkDeviceExpiry(flow);
   const response = await request(
     "/api/accounts/deviceauth/token",
     {
@@ -180,10 +208,32 @@ export async function pollChatGPTDeviceAuthorization(
     },
     signal,
   );
-  if (response.status === 403 || response.status === 404) return null;
+  signal?.throwIfAborted();
+  checkDeviceExpiry(flow);
+  if ([403, 404, 429].includes(response.status)) {
+    try {
+      await response.body?.cancel();
+    } catch {
+      // Discard unused bodies without turning a pending flow into a failure.
+    }
+    signal?.throwIfAborted();
+    checkDeviceExpiry(flow);
+    return response.status === 429 ? backoffDevicePoll(flow, response) : null;
+  }
+  if (!response.ok && response.status !== 400)
+    throw new Error("ChatGPT device authorization failed. Start again.");
+  let body: Record<string, unknown>;
+  try {
+    body = (await response.json()) as Record<string, unknown>;
+  } catch {
+    signal?.throwIfAborted();
+    throw new Error("ChatGPT returned an invalid authorization response.");
+  }
+  signal?.throwIfAborted();
+  checkDeviceExpiry(flow);
+  if (body.error === "slow_down") return backoffDevicePoll(flow, response);
   if (!response.ok)
     throw new Error("ChatGPT device authorization failed. Start again.");
-  const body = (await response.json()) as Record<string, unknown>;
   if (!nonempty(body.authorization_code) || !nonempty(body.code_verifier))
     throw new Error("ChatGPT returned an invalid authorization response.");
   return credentials(

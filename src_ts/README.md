@@ -22,6 +22,12 @@ respect the returned polling interval and expiry. `refreshChatGPTCredentials` ex
 token. The caller must serialize refreshes and securely persist returned rotations before inference.
 The callback is called before each request so disconnects reach existing clients.
 
+Device polling returns `null` while pending, including HTTP 429 and OAuth `slow_down`.
+After each pending result, reread the flow's mutable `intervalMs` before scheduling the next
+poll. Throttling increases the interval (fallback capped at 60 seconds without reducing an
+existing longer interval); valid `Retry-After` seconds or HTTP dates can extend it up to the
+remaining flow lifetime. Stop at `expiresAt`; HTTP 403/404 remain pending as required by this endpoint.
+
 This uses an undocumented Codex subscription backend, not the public OpenAI API. It runs no
 Codex agent or tools. Endpoint URLs are fixed and redirects are refused. Model discovery lists
 only visible subscription models. The backend controls output limits (`max_tokens` is omitted),
