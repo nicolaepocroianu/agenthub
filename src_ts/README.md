@@ -13,6 +13,31 @@ make test     # Run tests
 
 ## Usage
 
+### Experimental ChatGPT subscriptions
+
+Use `clientType: "chatgpt-codex"` with a server-side `chatgptCredentials` async callback
+returning `{ accessToken, refreshToken, accountId, expiresAt }` (milliseconds since epoch).
+`startChatGPTDeviceAuthorization` and `pollChatGPTDeviceAuthorization` implement device sign-in;
+respect the returned polling interval and expiry. `refreshChatGPTCredentials` exchanges a refresh
+token. The caller must serialize refreshes and securely persist returned rotations before inference.
+The callback is called before each request so disconnects reach existing clients.
+
+Device polling returns `null` while pending, including HTTP 429 and OAuth `slow_down`.
+After each pending result, reread the flow's mutable `intervalMs` before scheduling the next
+poll. Throttling increases the interval (fallback capped at 60 seconds without reducing an
+existing longer interval); valid `Retry-After` seconds or HTTP dates can extend it up to the
+remaining flow lifetime. Stop at `expiresAt`; HTTP 403/404 remain pending as required by this endpoint.
+
+This uses an undocumented Codex subscription backend, not the public OpenAI API. It runs no
+Codex agent or tools. Endpoint URLs are fixed and redirects are refused. Model discovery lists
+only visible subscription models. The backend controls output limits (`max_tokens` is omitted),
+temperature is rejected, and responses always stream with `store: false`. No retries are made by
+this transport. A rejected or revoked authorization requires reconnecting.
+
+Failed Responses streams raise `ResponseStreamError` with the provider's message and `code`
+(or `null` if omitted). Refresh cancellation and connection failures do not raise
+`ChatGPTAuthorizationError`; callers can retry without discarding stored credentials.
+
 ### Basic Client Usage
 
 ```typescript

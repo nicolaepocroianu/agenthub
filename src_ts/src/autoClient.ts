@@ -13,6 +13,8 @@
 // limitations under the License.
 
 import { LLMClient } from "./baseClient";
+import { ChatGPTCodexClient } from "./chatgpt_codex/client";
+import type { ChatGPTCredentialProvider } from "./chatgpt_codex/auth";
 import { GitHubCopilotClient } from "./github_copilot/client";
 import { Gemini3_8Client } from "./gemini3_8";
 import { Claude5Client } from "./claude5";
@@ -38,6 +40,7 @@ type LLMClientConstructor = new (options: {
 
 // The generic protocol clients are named explicitly rather than deduced from a model id.
 const PROTOCOL_CLIENT_TYPES = [
+  "chatgpt-codex",
   "github-copilot",
   "openai-chat",
   "openai-chat-vllm-adapter",
@@ -63,6 +66,7 @@ export class AutoLLMClient extends LLMClient {
    */
   constructor(options: {
     model: string;
+    chatgptCredentials?: ChatGPTCredentialProvider;
     apiKey?: string;
     baseUrl?: string | null;
     clientType?: string | null;
@@ -74,6 +78,10 @@ export class AutoLLMClient extends LLMClient {
       process.env.CLIENT_TYPE ||
       options.model
     ).toLowerCase();
+    if (this._clientType === "chatgpt-codex") {
+      this._client = new ChatGPTCodexClient(options);
+      return;
+    }
     this._client = this._createClientForModel(
       options.model,
       options.apiKey,
@@ -93,8 +101,11 @@ export class AutoLLMClient extends LLMClient {
    * @returns Instance of the appropriate client
    * @throws Error when the requested client is not yet implemented
    */
-  private _clientClassForModel(clientType: string): LLMClientConstructor | null {
+  private _clientClassForModel(
+    clientType: string,
+  ): LLMClientConstructor | null {
     if (clientType === "github-copilot") return GitHubCopilotClient;
+    if (clientType === "chatgpt-codex") return ChatGPTCodexClient;
     // every Gemini generation shares the unified client ("gemini-3" also matches the
     // gemini-3.8/gemini-3.7/gemini-3.6/gemini-3.5-flash-lite client types)
     if (
@@ -163,7 +174,9 @@ export class AutoLLMClient extends LLMClient {
     clientType?: string | null,
     defaultHeaders?: Record<string, string>,
   ): LLMClient {
-    const ClientClass = this._clientClassForModel(clientType || model.toLowerCase());
+    const ClientClass = this._clientClassForModel(
+      clientType || model.toLowerCase(),
+    );
     if (ClientClass === null) {
       throw new Error(
         `${clientType} is not supported. ` +
@@ -296,7 +309,8 @@ export class AutoLLMClient extends LLMClient {
     }
 
     return modelIds.filter(
-      (modelId) => this._clientClassForModel(modelId.toLowerCase()) === clientClass,
+      (modelId) =>
+        this._clientClassForModel(modelId.toLowerCase()) === clientClass,
     );
   }
 }

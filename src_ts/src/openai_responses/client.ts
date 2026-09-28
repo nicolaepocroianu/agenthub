@@ -19,7 +19,11 @@ import type {
   ResponseCreateParamsStreaming,
 } from "openai/resources/responses/responses";
 import { LLMClient } from "../baseClient";
-import { parseToolCallArguments, UnsupportedParameterError } from "../errors";
+import {
+  parseToolCallArguments,
+  ResponseStreamError,
+  UnsupportedParameterError,
+} from "../errors";
 import {
   EventType,
   FinishReason,
@@ -331,7 +335,10 @@ export class OpenaiResponsesClient extends LLMClient {
     let finishReason: FinishReason | null = null;
 
     const openaiEventType = modelOutput.type;
-    if (openaiEventType === "response.output_text.delta") {
+    if (openaiEventType === "response.failed") {
+      const error = modelOutput.response.error;
+      throw new ResponseStreamError(error?.message, error?.code);
+    } else if (openaiEventType === "response.output_text.delta") {
       eventType = "delta";
       contentItems.push({ type: "text", text: modelOutput.delta });
     } else if (

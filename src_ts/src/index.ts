@@ -13,9 +13,13 @@
 // limitations under the License.
 
 export { AutoLLMClient } from "./autoClient";
+export * from "./chatgpt_codex/auth";
+export { ChatGPTCodexClient } from "./chatgpt_codex/client";
+export type { ChatGPTModel } from "./chatgpt_codex/client";
 export {
   AgentHubError,
   EmptyResponseError,
+  ResponseStreamError,
   ToolCallArgumentParseError,
   UnsupportedOperationError,
   UnsupportedParameterError,
